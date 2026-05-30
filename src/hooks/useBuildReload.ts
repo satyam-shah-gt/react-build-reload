@@ -1,0 +1,167 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  DEFAULT_VERSION_URL,
+  fetchBuildInfo
+} from "../utils/fetchBuildInfo";
+import { hasBuildChanged } from "../utils/compareBuildId";
+import { reloadPage } from "../utils/reloadPage";
+import type {
+  BuildInfo,
+  NewBuildPayload,
+  ReloadMode,
+  UseBuildReloadOptions,
+  UseBuildReloadResult
+} from "../types";
+
+const DEFAULT_CHECK_INTERVAL = 60_000;
+const DEFAULT_RELOAD_MODE: ReloadMode = "prompt";
+const DEFAULT_RELOAD_DELAY = 0;
+
+export function useBuildReload(
+  options: UseBuildReloadOptions = {}
+): UseBuildReloadResult {
+  const {
+    versionUrl = DEFAULT_VERSION_URL,
+    currentBuildId,
+    checkInterval = DEFAULT_CHECK_INTERVAL,
+    reloadMode = DEFAULT_RELOAD_MODE,
+    reloadDelay = DEFAULT_RELOAD_DELAY,
+    enabled = true,
+    onNewBuild,
+    onError
+  } = options;
+
+  const [resolvedCurrentBuildId, setResolvedCurrentBuildId] = useState<string | null>(
+    currentBuildId ?? null
+  );
+  const [latestBuildInfo, setLatestBuildInfo] = useState<BuildInfo | null>(null);
+  const [isNewBuildAvailable, setIsNewBuildAvailable] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const currentBuildIdRef = useRef<string | null>(currentBuildId ?? null);
+  const notifiedLatestBuildIdRef = useRef<string | null>(null);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const onNewBuildRef = useRef(onNewBuild);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onNewBuildRef.current = onNewBuild;
+  }, [onNewBuild]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
+    if (currentBuildId === undefined) {
+      return;
+    }
+
+    currentBuildIdRef.current = currentBuildId;
+    setResolvedCurrentBuildId(currentBuildId);
+  }, [currentBuildId]);
+
+  const reloadApp = useCallback(() => {
+    reloadPage();
+  }, []);
+
+  const handleNewBuild = useCallback(
+    (payload: NewBuildPayload) => {
+      if (notifiedLatestBuildIdRef.current === payload.latestBuildId) {
+        return;
+      }
+
+      // Remember the latest notified build so polling cannot trigger duplicate reloads.
+      notifiedLatestBuildIdRef.current = payload.latestBuildId;
+      setIsNewBuildAvailable(true);
+      onNewBuildRef.current?.(payload);
+
+      if (reloadMode === "auto") {
+        reloadTimerRef.current = setTimeout(reloadApp, Math.max(0, reloadDelay));
+      }
+    },
+    [reloadApp, reloadDelay, reloadMode]
+  );
+
+  const checkNow = useCallback(async () => {
+    if (!enabled) {
+      return;
+    }
+
+    abortControllerRef.current?.abort();
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      const buildInfo = await fetchBuildInfo(versionUrl, abortController.signal);
+      setLatestBuildInfo(buildInfo);
+      setError(null);
+
+      const activeCurrentBuildId = currentBuildIdRef.current;
+
+      if (!activeCurrentBuildId) {
+        currentBuildIdRef.current = buildInfo.buildId;
+        setResolvedCurrentBuildId(buildInfo.buildId);
+        return;
+      }
+
+      if (hasBuildChanged(activeCurrentBuildId, buildInfo.buildId)) {
+        handleNewBuild({
+          currentBuildId: activeCurrentBuildId,
+          latestBuildId: buildInfo.buildId,
+          latestBuildInfo: buildInfo
+        });
+      }
+    } catch (caughtError) {
+      if (caughtError instanceof DOMException && caughtError.name === "AbortError") {
+        return;
+      }
+
+      const normalizedError =
+        caughtError instanceof Error
+          ? caughtError
+          : new Error("Build reload check failed.");
+
+      setError(normalizedError);
+      onErrorRef.current?.(normalizedError);
+    }
+  }, [enabled, handleNewBuild, versionUrl]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    void checkNow();
+
+    const intervalId = window.setInterval(() => {
+      void checkNow();
+    }, Math.max(1_000, checkInterval));
+
+    return () => {
+      window.clearInterval(intervalId);
+      abortControllerRef.current?.abort();
+
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+      }
+    };
+  }, [checkInterval, checkNow, enabled]);
+
+  const dismissPrompt = useCallback(() => {
+    setIsNewBuildAvailable(false);
+  }, []);
+
+  return {
+    isNewBuildAvailable,
+    currentBuildId: resolvedCurrentBuildId,
+    latestBuildId: latestBuildInfo?.buildId ?? null,
+    latestBuildInfo,
+    error,
+    reloadApp,
+    checkNow,
+    dismissPrompt
+  };
+}
