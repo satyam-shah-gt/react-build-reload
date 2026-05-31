@@ -1,12 +1,21 @@
 {
   "name": "react-build-reload",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React library for detecting new frontend builds and reloading safely.",
   "type": "module",
+  "homepage": "https://react-refresh-website.satyamshah.workers.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/satyam-shah-gt/react-build-reload"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "react-build-reload": "./bin/react-build-reload.js"
+  },
   "files": [
+    "bin",
     "dist",
     "README.md",
     "docs/getting-started.md",
@@ -25,6 +34,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
+    "generate:version": "node ./bin/react-build-reload.js generate",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
