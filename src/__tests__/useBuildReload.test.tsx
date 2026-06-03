@@ -193,3 +193,183 @@ describe("BuildReloadWatcher", () => {
     );
   });
 });
+
+describe("useBuildReload checkOnWindowFocus", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("re-checks when the document becomes visible by default", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible"
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-checks when the window regains focus", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not re-check when the document becomes hidden", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "hidden"
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips installing focus and visibility listeners when checkOnWindowFocus is false", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse("abc123"));
+    const documentAddSpy = vi.spyOn(document, "addEventListener");
+    const windowAddSpy = vi.spyOn(window, "addEventListener");
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{
+          currentBuildId: "abc123",
+          checkInterval: 60_000,
+          checkOnWindowFocus: false
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalled();
+    });
+
+    const visibilityCalls = documentAddSpy.mock.calls.filter(
+      ([type]) => type === "visibilitychange"
+    );
+    const focusCalls = windowAddSpy.mock.calls.filter(
+      ([type]) => type === "focus"
+    );
+
+    expect(visibilityCalls).toHaveLength(0);
+    expect(focusCalls).toHaveLength(0);
+  });
+
+  it("skips installing focus and visibility listeners when enabled is false", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+    const documentAddSpy = vi.spyOn(document, "addEventListener");
+    const windowAddSpy = vi.spyOn(window, "addEventListener");
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{
+          currentBuildId: "abc123",
+          checkInterval: 60_000,
+          enabled: false
+        }}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(documentAddSpy).not.toHaveBeenCalledWith(
+      "visibilitychange",
+      expect.any(Function)
+    );
+    expect(windowAddSpy).not.toHaveBeenCalledWith(
+      "focus",
+      expect.any(Function)
+    );
+  });
+
+  it("removes focus and visibility listeners on unmount", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse("abc123"));
+    const documentRemoveSpy = vi.spyOn(document, "removeEventListener");
+    const windowRemoveSpy = vi.spyOn(window, "removeEventListener");
+
+    const { unmount } = render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    expect(documentRemoveSpy).toHaveBeenCalledWith(
+      "visibilitychange",
+      expect.any(Function)
+    );
+    expect(windowRemoveSpy).toHaveBeenCalledWith(
+      "focus",
+      expect.any(Function)
+    );
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "react-build-reload",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "React library for detecting new frontend builds and reloading safely.",
   "type": "module",
   "author": {
@@ -25,6 +25,8 @@
     "bin",
     "dist",
     "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "docs/getting-started.md",
     "docs/api-reference.md",
     "docs/version-file.md",

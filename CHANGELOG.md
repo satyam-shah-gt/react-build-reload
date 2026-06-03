@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning where possible.
 
+## 0.2.0 
+### Added
+
+- Added `checkOnWindowFocus` option (default `true`) to re-run the version check when the document becomes visible or the window regains focus.
+
 ## 0.1.2 
 ### Added
 

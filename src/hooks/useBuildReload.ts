@@ -16,6 +16,7 @@ import type {
 const DEFAULT_CHECK_INTERVAL = 60_000;
 const DEFAULT_RELOAD_MODE: ReloadMode = "prompt";
 const DEFAULT_RELOAD_DELAY = 0;
+const DEFAULT_CHECK_ON_WINDOW_FOCUS = true;
 
 export function useBuildReload(
   options: UseBuildReloadOptions = {}
@@ -27,6 +28,7 @@ export function useBuildReload(
     reloadMode = DEFAULT_RELOAD_MODE,
     reloadDelay = DEFAULT_RELOAD_DELAY,
     enabled = true,
+    checkOnWindowFocus = DEFAULT_CHECK_ON_WINDOW_FOCUS,
     onNewBuild,
     onError
   } = options;
@@ -149,6 +151,36 @@ export function useBuildReload(
       }
     };
   }, [checkInterval, checkNow, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !checkOnWindowFocus) {
+      return;
+    }
+
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    // Re-check as soon as the user returns to the tab so long-running sessions
+    // detect a new deployment without waiting for the next interval tick.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkNow();
+      }
+    };
+
+    const handleFocus = () => {
+      void checkNow();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [checkNow, checkOnWindowFocus, enabled]);
 
   const dismissPrompt = useCallback(() => {
     setIsNewBuildAvailable(false);
