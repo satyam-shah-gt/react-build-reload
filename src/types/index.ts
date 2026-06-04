@@ -27,6 +27,7 @@ export interface BuildReloadConfig {
   enabled?: boolean;
   reloadOnChunkError?: boolean;
   checkOnWindowFocus?: boolean;
+  pauseWhenOffline?: boolean;
   onNewBuild?: (payload: NewBuildPayload) => void;
   onError?: (error: Error) => void;
 }

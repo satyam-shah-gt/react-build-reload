@@ -17,6 +17,7 @@ const DEFAULT_CHECK_INTERVAL = 60_000;
 const DEFAULT_RELOAD_MODE: ReloadMode = "prompt";
 const DEFAULT_RELOAD_DELAY = 0;
 const DEFAULT_CHECK_ON_WINDOW_FOCUS = true;
+const DEFAULT_PAUSE_WHEN_OFFLINE = true;
 
 export function useBuildReload(
   options: UseBuildReloadOptions = {}
@@ -29,6 +30,7 @@ export function useBuildReload(
     reloadDelay = DEFAULT_RELOAD_DELAY,
     enabled = true,
     checkOnWindowFocus = DEFAULT_CHECK_ON_WINDOW_FOCUS,
+    pauseWhenOffline = DEFAULT_PAUSE_WHEN_OFFLINE,
     onNewBuild,
     onError
   } = options;
@@ -91,6 +93,16 @@ export function useBuildReload(
       return;
     }
 
+    // Skip the request entirely while the browser reports offline so polling
+    // does not log noise or burn through fetch attempts during outages.
+    if (
+      pauseWhenOffline &&
+      typeof navigator !== "undefined" &&
+      navigator.onLine === false
+    ) {
+      return;
+    }
+
     abortControllerRef.current?.abort();
 
     const abortController = new AbortController();
@@ -129,7 +141,7 @@ export function useBuildReload(
       setError(normalizedError);
       onErrorRef.current?.(normalizedError);
     }
-  }, [enabled, handleNewBuild, versionUrl]);
+  }, [enabled, handleNewBuild, pauseWhenOffline, versionUrl]);
 
   useEffect(() => {
     if (!enabled) {
@@ -181,6 +193,30 @@ export function useBuildReload(
       window.removeEventListener("focus", handleFocus);
     };
   }, [checkNow, checkOnWindowFocus, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !pauseWhenOffline) {
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    // As soon as the browser regains connectivity, run a one-shot check so a
+    // build deployed while the user was offline is picked up without waiting
+    // for the next interval tick. The interval itself keeps running; the
+    // offline guard inside `checkNow` handles the rest.
+    const handleOnline = () => {
+      void checkNow();
+    };
+
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [checkNow, enabled, pauseWhenOffline]);
 
   const dismissPrompt = useCallback(() => {
     setIsNewBuildAvailable(false);

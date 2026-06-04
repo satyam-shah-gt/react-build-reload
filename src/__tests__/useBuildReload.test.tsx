@@ -373,3 +373,172 @@ describe("useBuildReload checkOnWindowFocus", () => {
     );
   });
 });
+
+describe("useBuildReload pauseWhenOffline", () => {
+  const setNavigatorOnline = (value: boolean) => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => value
+    });
+  };
+
+  beforeEach(() => {
+    setNavigatorOnline(true);
+  });
+
+  afterEach(() => {
+    setNavigatorOnline(true);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("skips version checks when the browser reports offline by default", async () => {
+    setNavigatorOnline(false);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not skip version checks when pauseWhenOffline is false", async () => {
+    setNavigatorOnline(false);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{
+          currentBuildId: "abc123",
+          checkInterval: 60_000,
+          pauseWhenOffline: false
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("re-checks when the browser reports it is back online", async () => {
+    setNavigatorOnline(false);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setNavigatorOnline(true);
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips installing the online listener when pauseWhenOffline is false", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse("abc123"));
+    const windowAddSpy = vi.spyOn(window, "addEventListener");
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{
+          currentBuildId: "abc123",
+          checkInterval: 60_000,
+          pauseWhenOffline: false
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalled();
+    });
+
+    const onlineCalls = windowAddSpy.mock.calls.filter(
+      ([type]) => type === "online"
+    );
+
+    expect(onlineCalls).toHaveLength(0);
+  });
+
+  it("skips installing the online listener when enabled is false", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse("abc123"));
+    const windowAddSpy = vi.spyOn(window, "addEventListener");
+
+    render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{
+          currentBuildId: "abc123",
+          checkInterval: 60_000,
+          enabled: false
+        }}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(windowAddSpy).not.toHaveBeenCalledWith(
+      "online",
+      expect.any(Function)
+    );
+  });
+
+  it("removes the online listener on unmount", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse("abc123"));
+    const windowRemoveSpy = vi.spyOn(window, "removeEventListener");
+
+    const { unmount } = render(
+      <HookHarness
+        onState={vi.fn()}
+        options={{ currentBuildId: "abc123", checkInterval: 60_000 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    expect(windowRemoveSpy).toHaveBeenCalledWith(
+      "online",
+      expect.any(Function)
+    );
+  });
+});

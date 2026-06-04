@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning where possible.
 
+## 0.3.0 
+### Added
+
+- Added `pauseWhenOffline` option (default `true`) to skip version checks while the browser is offline and run an immediate check when it regains connectivity.
+
 ## 0.2.0 
 ### Added
 
