@@ -20,6 +20,7 @@ Component that starts polling, handles chunk load errors, and renders the defaul
 | `enabled` | `boolean` | `true` | Enables or disables polling. |
 | `reloadOnChunkError` | `boolean` | `true` | Reload once when common dynamic import/chunk failures occur. |
 | `checkOnWindowFocus` | `boolean` | `true` | Re-runs the version check when the document becomes visible or the window regains focus. |
+| `pauseWhenOffline` | `boolean` | `true` | Skips version checks while `navigator.onLine` is `false` and runs an immediate check when the browser fires the `online` event. |
 | `onNewBuild` | `(payload) => void` | `undefined` | Called once when a new build is detected. |
 | `onError` | `(error) => void` | `undefined` | Called when fetching or parsing build info fails. |
 | `promptMessage` | `ReactNode` | default message | Prompt text or node. |
