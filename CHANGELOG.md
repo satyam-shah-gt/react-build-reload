@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning where possible.
+## 1.0.1
+### Stable 
+- Added deployment documents in different servers.
+- Stable release
 
 ## 0.3.0 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "react-build-reload",
-  "version": "0.3.2",
+  "version": "1.0.1",
   "description": "React library for detecting new frontend builds and reloading safely.",
   "type": "module",
   "author": {
@@ -27,11 +27,17 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
     "docs/getting-started.md",
     "docs/api-reference.md",
     "docs/version-file.md",
     "docs/usage-examples.md",
-    "docs/roadmap.md"
+    "docs/roadmap.md",
+    "docs/deployment-github-actions.md",
+    "docs/deployment-vercel.md",
+    "docs/deployment-netlify.md",
+    "docs/deployment-cloudflare-pages.md"
   ],
   "exports": {
     ".": {
